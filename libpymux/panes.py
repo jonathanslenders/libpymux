@@ -224,9 +224,12 @@ class ExecPane(Pane):
         self.pane_executor = pane_executor
         self.finished = False
         self.process_id = None
+        self._started = False
 
     @asyncio.coroutine
     def run(self):
+        assert not self._started
+        self._started = True
         try:
             # Connect read pipe to process
             read_transport, read_protocol = yield from loop.connect_read_pipe(
