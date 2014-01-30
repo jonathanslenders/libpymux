@@ -286,11 +286,11 @@ class ExecPane(Pane):
         pid, status = yield from loop.run_in_executor(self.pane_executor, os.waitpid, pid, 0)
         logger.info('Process ended, status=%r' % status)
 
-    def kill_process(self):
+    def kill_process(self, sig=signal.SIGKILL):
         """ Send SIGKILL to the process running in this pane. """
         if self.process_id:
             logger.info('Killing process %r' % self.process_id)
-            os.kill(self.process_id, signal.SIGKILL)
+            os.kill(self.process_id, sig)
 
     def _exec(self):
         """
