@@ -58,6 +58,7 @@ class Window:
 
         self.panes.remove(pane)
         pane.parent.remove(pane)
+        pane.window = None
 
     def focus_next(self):
         if self.active_pane:

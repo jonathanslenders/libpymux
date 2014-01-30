@@ -80,10 +80,13 @@ class Session:
 
     def add_renderer(self, renderer):
         """ Add this session renderer. """
+        renderer.session = weakref.ref(self)
+
         self.renderers.append(renderer)
         self.update_size()
 
     def remove_renderer(self, renderer):
+        renderer.session = None
         self.renderers.remove(renderer)
         self.update_size()
 

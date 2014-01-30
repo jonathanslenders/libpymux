@@ -40,9 +40,9 @@ reverse_bgcolour_code = dict((v, k) for k, v in pyte.graphics.BG.items())
 
 
 class Renderer:
-    def __init__(self, client_ref):
+    def __init__(self):
         # Invalidate state
-        self.get_client = client_ref # TODO: rename to session_ref
+        self.session = None # Weakref set by session.add_renderer
         self._last_size = None
 
     def get_size(self):
@@ -68,7 +68,7 @@ class Renderer:
     def _repaint(self, invalidated_parts, char_buffers):
         data = []
         write = data.append
-        client = self.get_client()
+        session = self.session()
 
         if invalidated_parts & Redraw.ClearFirst:
             write('\u001b[2J') # Erase screen
@@ -77,27 +77,27 @@ class Renderer:
         write('\033[?25l')
 
         # Draw panes.
-        if invalidated_parts & Redraw.Panes and client.active_window:
+        if invalidated_parts & Redraw.Panes and session.active_window:
             only_dirty = not bool(invalidated_parts & Redraw.ClearFirst)
             logger.info('Redraw panes')
-            for pane in client.active_window.panes:
+            for pane in session.active_window.panes:
                 data += self._repaint_pane(pane, only_dirty=only_dirty, char_buffer=char_buffers[pane])
 
         # Draw borders
-        if invalidated_parts & Redraw.Borders and client.active_window:
+        if invalidated_parts & Redraw.Borders and session.active_window:
             logger.info('Redraw borders')
-            data += self._repaint_border(client)
+            data += self._repaint_border(session)
 
         # Draw background.
         if invalidated_parts & Redraw.ClearFirst or self._last_size != self.get_size():
-            data += self._repaint_background(client)
+            data += self._repaint_background(session)
 
         # Draw status bar
         if invalidated_parts & Redraw.StatusBar:
-            data += self._repaint_status_bar(client)
+            data += self._repaint_status_bar(session)
 
         # Set cursor to right position (if visible.)
-        active_pane = client.active_pane
+        active_pane = session.active_pane
 
         if active_pane and not active_pane.screen.cursor.hidden:
             ypos, xpos = active_pane.cursor_position
@@ -119,15 +119,15 @@ class Renderer:
 
         return data
 
-    def _repaint_border(self, client):
+    def _repaint_border(self, session):
         data = []
         write = data.append
 
-        for y in range(0, client.sy - 1):
+        for y in range(0, session.sy - 1):
             write('\033[%i;%iH' % (y+1, 0))
 
-            for x in range(0, client.sx):
-                border_type, is_active = self._check_cell(client, x, y)
+            for x in range(0, session.sx):
+                border_type, is_active = self._check_cell(session, x, y)
 
                 if border_type and border_type != BorderType.Inside:
                     write('\033[%i;%iH' % (y+1, x+1)) # XXX: we don't have to send this every time. Optimize.
@@ -140,7 +140,7 @@ class Renderer:
 
         return data
 
-    def _repaint_background(self, client):
+    def _repaint_background(self, session):
         data = []
         size = self.get_size()
 
@@ -151,8 +151,8 @@ class Renderer:
         write('\033[43m') # yellow bg
         width, height = size
 
-        sx = client.sx
-        sy = client.sy
+        sx = session.sx
+        sy = session.sy
 
         for y in range(0, height - 1):
             for x in range(0, width):
@@ -162,7 +162,7 @@ class Renderer:
         self._last_size = size
         return data
 
-    def _repaint_status_bar(self, client):
+    def _repaint_status_bar(self, session):
         data = []
         write = data.append
 
@@ -180,8 +180,8 @@ class Renderer:
         # Set bold
         write('\033[1m')
 
-        text = client.status_bar.left_text
-        rtext = client.status_bar.right_text
+        text = session.status_bar.left_text
+        rtext = session.status_bar.right_text
         space_left = width - len(text) - len(rtext)
         logger.info('WIDTH=%r ' %  width)
 
@@ -259,7 +259,7 @@ class Renderer:
 
         return data
 
-    def _check_cell(self, client, x, y):
+    def _check_cell(self, session, x, y):
         """ For a given (x,y) cell, return the pane to which this belongs, and
         the type of border we have there.
 
@@ -269,7 +269,7 @@ class Renderer:
         mask = 0
         is_active = False
 
-        for pane in client.active_window.panes:
+        for pane in session.active_window.panes:
             border_type = pane._get_border_type(x, y)
 
             # If inside pane:
@@ -277,14 +277,14 @@ class Renderer:
                 return border_type, False
 
             mask |= border_type
-            is_active = is_active or (border_type and pane == client.active_pane)
+            is_active = is_active or (border_type and pane == session.active_pane)
 
         return mask, is_active
 
 
 class PipeRenderer(Renderer):
-    def __init__(self, session_ref, write_func):
-        super().__init__(session_ref)
+    def __init__(self, write_func):
+        super().__init__()
         self._write_func = write_func
 
     @asyncio.coroutine
