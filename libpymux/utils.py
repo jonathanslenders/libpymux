@@ -56,12 +56,14 @@ def alternate_screen(write):
     return Context()
 
 
-def call_on_sigwinch(callback):
+def call_on_sigwinch(callback, loop=None):
     """
     Set a function to be called when the SIGWINCH signal is received.
     (Normally, on terminal resize.)
     """
-    def sigwinch_handler(n, frame):
+    if loop is None:
         loop = asyncio.get_event_loop()
+
+    def sigwinch_handler():
         loop.call_soon(callback)
-    signal.signal(signal.SIGWINCH, sigwinch_handler)
+    loop.add_signal_handler(signal.SIGWINCH, sigwinch_handler)
