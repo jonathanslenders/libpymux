@@ -1,7 +1,8 @@
 from .log import logger
+from asyncio.protocols import Protocol
 
 
-class InputProtocol:
+class InputProtocol(Protocol):
     def __init__(self, session):
         self.session = session
 
