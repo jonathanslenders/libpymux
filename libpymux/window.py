@@ -46,6 +46,19 @@ class Window:
 
         return pane
 
+    def remove_pane(self, pane):
+        """
+        Remove pane from window
+        """
+        assert pane in self.panes
+
+        # Focus next pane if this window when this one was focussed.
+        if len(self.panes) > 1 and self.active_pane == pane:
+            self.focus_next()
+
+        self.panes.remove(pane)
+        pane.parent.remove(pane)
+
     def focus_next(self):
         if self.active_pane:
             panes = list(self.panes)
