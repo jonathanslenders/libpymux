@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from asyncio.protocols import BaseProtocol
 from libpymux.input import InputProtocol
 from libpymux.panes import ExecPane
