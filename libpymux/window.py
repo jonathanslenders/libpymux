@@ -2,6 +2,7 @@ from .layout import TileContainer
 from .invalidate import Redraw
 import weakref
 
+
 class Window:
     _counter = 0
 

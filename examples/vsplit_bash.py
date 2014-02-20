@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+Usage:
+    vsplit_bash.py
+
+Opens two bash shells alongside each other.
+"""
 from asyncio.protocols import BaseProtocol
 from libpymux.input import InputProtocol
 from libpymux.panes import ExecPane

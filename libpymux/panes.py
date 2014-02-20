@@ -62,19 +62,6 @@ class BorderType:
     TopLeft = Position.Right | Position.Bottom
 
 
-class SubProcessProtocol(asyncio.protocols.SubprocessProtocol):
-    def __init__(self, write_output):
-        self.transport = None
-        self._write_output = write_output
-
-    def connection_made(self, transport):
-        self.transport = transport
-
-    def data_received(self, data):
-        self._write_output(data.decode('utf-8'))
-
-
-
 
 class Pane(Container):
     _counter = 0
@@ -101,9 +88,6 @@ class Pane(Container):
 
         # Create pseudo terminal for this pane.
         self.master, self.slave = os.openpty()
-
-        # Master side -> attached to terminal emulator.
-        self.shell_out = io.open(self.master, 'rb', 0)
 
         # Slave side -> attached to process.
         set_size(self.slave, self.sy, self.sx)
@@ -148,15 +132,42 @@ class Pane(Container):
 
         self.invalidate()
 
+    @asyncio.coroutine
+    def run(self):
+        assert not self._started
+        self._started = True
+        try:
+            def output(data):
+                """ Write data received from the application into the pane and rerender. """
+                self.stream.feed(data)
+                self.invalidate()
 
-    def write_output(self, data):
-        """ Write data received from the application into the pane and rerender. """
-        self.stream.feed(data)
-        self.invalidate()
+            # Master side -> attached to terminal emulator.
+            pty_out = io.open(self.master, 'rb', 0)
+
+            # Connect read pipe to process
+            read_transport, read_protocol = yield from loop.connect_read_pipe(
+                                lambda:SubProcessProtocol(output), pty_out)
+
+            # Run process in executor, wait for that to finish.
+            yield from self.run_application()
+
+            # Set finished.
+            self.finished = True # TODO: close pseudo terminal.
+        except Exception as e:
+            logger.error('CRASH: ' + repr(e))
+
+    @asyncio.coroutine
+    def run_application(self):
+        raise NotImplementedError
 
     def write_input(self, data):
         """ Write user key strokes to the input. """
         os.write(self.master, data)
+
+    def write(self, data):
+        """ Write to stdout of this pane (writes to the slave side of the pty). """
+        os.write(self.slave, data)
 
     @property
     def cursor_position(self):
@@ -217,6 +228,15 @@ class Pane(Container):
             #return CellPosition.Inside
 
 
+class SubProcessProtocol(asyncio.protocols.SubprocessProtocol):
+    def __init__(self, write_output):
+        self._write_output = write_output
+        super().__init__()
+
+    def data_received(self, data):
+        self._write_output(data.decode('utf-8'))
+
+
 class ExecPane(Pane):
     def __init__(self, pane_executor=None):
         super().__init__()
@@ -227,28 +247,12 @@ class ExecPane(Pane):
         self._started = False
 
     @asyncio.coroutine
-    def run(self):
-        assert not self._started
-        self._started = True
-        try:
-            # Connect read pipe to process
-            read_transport, read_protocol = yield from loop.connect_read_pipe(
-                                lambda:SubProcessProtocol(self.write_output), self.shell_out)
-
-            # Run process in executor, wait for that to finish.
-            yield from self._run_fork()
-
-            # Set finished.
-            self.finished = True # TODO: close pseudo terminal.
-        except Exception as e:
-            logger.error('CRASH: ' + repr(e))
-
-    @asyncio.coroutine
-    def _run_fork(self): # TODO: rename!
+    def run_application(self):
         """
         Fork this process. The child gets attached to the slave side of the
         pseudo terminal.
         """
+        logger.info('Forking.')
         pid = os.fork()
         if pid == 0: # TODO: <0 is fail
             yield from self._in_child()
