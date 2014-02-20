@@ -271,9 +271,6 @@ class ExecPane(Pane):
         os.dup2(self.slave, 1)
         os.dup2(self.slave, 2)
 
-        # Set environment variables for child process
-        os.environ['PYMUX_PANE'] = 'TODO:Pane value'
-
         # Execute in child.
         try:
             self._exec()
