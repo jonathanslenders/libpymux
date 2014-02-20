@@ -78,10 +78,9 @@ class Renderer:
 
         # Draw panes.
         if invalidated_parts & Redraw.Panes and session.active_window:
-            only_dirty = not bool(invalidated_parts & Redraw.ClearFirst)
             logger.info('Redraw panes')
             for pane in session.active_window.panes:
-                data += self._repaint_pane(pane, only_dirty=only_dirty, char_buffer=char_buffers[pane])
+                data += self._repaint_pane(pane, char_buffer=char_buffers[pane])
 
         # Draw borders
         if invalidated_parts & Redraw.Borders and session.active_window:
@@ -191,7 +190,7 @@ class Renderer:
 
         return data
 
-    def _repaint_pane(self, pane, only_dirty=True, char_buffer=None): # TODO: remove only_dirty
+    def _repaint_pane(self, pane, char_buffer=None):
         data = []
         write = data.append
 
